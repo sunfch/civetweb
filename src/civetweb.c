@@ -6132,7 +6132,7 @@ static void log_access(const struct mg_connection *conn)
             conn->bucket_name[0] ? conn->bucket_name : "-",
             host_header ? host_header : "-",
             src_addr,
-            x_real_ip ? x_real_ip : "-",
+            x_real_ip ? x_real_ip : src_addr,
             ri->remote_user == NULL ? "-" : ri->remote_user, date,
             ri->request_method ? ri->request_method : "-",
             ri->uri ? ri->uri : "-", ri->query_string ? "?" : "",
