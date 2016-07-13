@@ -819,6 +819,7 @@ struct mg_context {
 };
 
 #define UID_STRING_LEN  (32)
+#define BUCKET_NAME_LEN  (32)
 
 struct mg_connection {
     struct mg_request_info request_info;
@@ -849,6 +850,7 @@ struct mg_connection {
 #endif
     int is_chunked;                 /* transfer-encoding is chunked */
     char uid[UID_STRING_LEN];
+    char bucket_name[BUCKET_NAME_LEN];
 };
 
 static pthread_key_t sTlsKey;  /* Thread local storage index */
@@ -1179,6 +1181,14 @@ int mg_set_request_uid(struct mg_connection *conn, const char* uid, size_t len)
   size_t cp_len = UID_STRING_LEN > len ? (len) : (UID_STRING_LEN - 1);
   strncpy(conn->uid, uid, cp_len);
   conn->uid[cp_len] = 0;
+  return 0;
+}
+
+int mg_set_bucket_name(struct mg_connection *conn, const char* bucket_name, size_t len)
+{
+  size_t cp_len = BUCKET_NAME_LEN > len ? (len) : (BUCKET_NAME_LEN - 1);
+  strncpy(conn->bucket_name, bucket_name, cp_len);
+  conn->bucket_name[cp_len] = 0;
   return 0;
 }
 
@@ -6116,9 +6126,10 @@ static void log_access(const struct mg_connection *conn)
     referer = header_val(conn, "Referer");
     user_agent = header_val(conn, "User-Agent");
 
-    snprintf(buf, sizeof(buf), "\"%s\" \"%s\" \"%s\" \"%s\" \"-\" \"%s\" \"[%s]\" \"%s %s%s%s HTTP/%s\" "
+    snprintf(buf, sizeof(buf), "\"%s\" \"%s\" \"%s\" \"%s\" \"%s\" \"-\" \"%s\" \"[%s]\" \"%s %s%s%s HTTP/%s\" "
 		    "\"%d\" \"%" INT64_FMT "\" \"%s\" \"%s\" \"%" INT64_FMT "\" \"%" INT64_FMT "\"",
             conn->uid,
+            conn->bucket_name[0] ? conn->bucket_name : "-",
             host_header ? host_header : "-",
             src_addr,
             x_real_ip ? x_real_ip : "-",
