@@ -818,6 +818,8 @@ struct mg_context {
 #endif
 };
 
+#define UID_STRING_LEN  (32)
+
 struct mg_connection {
     struct mg_request_info request_info;
     struct mg_context *ctx;
@@ -846,6 +848,7 @@ struct mg_connection {
     void * lua_websocket_state;     /* Lua_State for a websocket connection */
 #endif
     int is_chunked;                 /* transfer-encoding is chunked */
+    char uid[UID_STRING_LEN];
 };
 
 static pthread_key_t sTlsKey;  /* Thread local storage index */
@@ -1169,6 +1172,14 @@ const char *mg_version(void)
 struct mg_request_info *mg_get_request_info(struct mg_connection *conn)
 {
     return &conn->request_info;
+}
+
+int mg_set_request_uid(struct mg_connection *conn, const char* uid, size_t len)
+{
+  size_t cp_len = UID_STRING_LEN > len ? (len) : (UID_STRING_LEN - 1);
+  strncpy(conn->uid, uid, cp_len);
+  conn->uid[cp_len] = 0;
+  return 0;
 }
 
 /* Skip the characters until one of the delimiters characters found.
@@ -6103,7 +6114,8 @@ static void log_access(const struct mg_connection *conn)
     referer = header_val(conn, "Referer");
     user_agent = header_val(conn, "User-Agent");
 
-    snprintf(buf, sizeof(buf), "%s %s - %s [%s] \"%s %s%s%s HTTP/%s\" %d %" INT64_FMT " %s %s %" INT64_FMT " %" INT64_FMT,
+    snprintf(buf, sizeof(buf), "%s %s %s - %s [%s] \"%s %s%s%s HTTP/%s\" %d %" INT64_FMT " %s %s %" INT64_FMT " %" INT64_FMT,
+            conn->uid,
             host_header ? host_header : "-",
             src_addr, ri->remote_user == NULL ? "-" : ri->remote_user, date,
             ri->request_method ? ri->request_method : "-",
