@@ -6072,6 +6072,7 @@ static void log_access(const struct mg_connection *conn)
     char date[64], src_addr[IP_ADDR_STR_LEN];
     struct tm *tm;
     const char *host_header;
+    const char *x_real_ip;
     int64_t spent_time;
     int len;
 
@@ -6109,15 +6110,18 @@ static void log_access(const struct mg_connection *conn)
     }
 
     host_header = mg_get_header(conn, "Host");
+    x_real_ip = mg_get_header(conn, "X-Real-IP");
 
     sockaddr_to_string(src_addr, sizeof(src_addr), &conn->client.rsa);
     referer = header_val(conn, "Referer");
     user_agent = header_val(conn, "User-Agent");
 
-    snprintf(buf, sizeof(buf), "%s %s %s - %s [%s] \"%s %s%s%s HTTP/%s\" %d %" INT64_FMT " %s %s %" INT64_FMT " %" INT64_FMT,
+    snprintf(buf, sizeof(buf), "%s %s %s %s - %s [%s] \"%s %s%s%s HTTP/%s\" %d %" INT64_FMT " %s %s %" INT64_FMT " %" INT64_FMT,
             conn->uid,
             host_header ? host_header : "-",
-            src_addr, ri->remote_user == NULL ? "-" : ri->remote_user, date,
+            src_addr,
+            x_real_ip ? x_real_ip : "-",
+            ri->remote_user == NULL ? "-" : ri->remote_user, date,
             ri->request_method ? ri->request_method : "-",
             ri->uri ? ri->uri : "-", ri->query_string ? "?" : "",
             ri->query_string ? ri->query_string : "", ri->http_version,
