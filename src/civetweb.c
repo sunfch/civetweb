@@ -825,6 +825,8 @@ struct mg_connection {
     SSL_CTX *client_ssl_ctx;        /* SSL context for client connections */
     struct socket client;           /* Connected client */
     time_t birth_time;              /* Time when request was received */
+    struct timeval start_tv;        /* Time when request was received */
+    struct timeval end_tv;          /* Time when request was finished */
     int64_t num_bytes_sent;         /* Total bytes sent to client */
     int64_t content_len;            /* Content-Length header value */
     int64_t consumed_content;       /* How many bytes of content have been read */
@@ -2394,6 +2396,7 @@ int mg_write(struct mg_connection *conn, const void *buf, size_t len)
         total = push(NULL, conn->client.sock, conn->ssl, (const char *) buf,
                      (int64_t) len);
     }
+    conn->num_bytes_sent += total;
     return (int) total;
 }
 
@@ -6057,6 +6060,9 @@ static void log_access(const struct mg_connection *conn)
     FILE *fp;
     char date[64], src_addr[IP_ADDR_STR_LEN];
     struct tm *tm;
+    const char *host_header;
+    int64_t spent_time;
+    int len;
 
     const char *referer;
     const char *user_agent;
@@ -6077,18 +6083,34 @@ static void log_access(const struct mg_connection *conn)
         date[sizeof(date) - 1] = '\0';
     }
 
+    spent_time = 1000000 * (conn->end_tv.tv_sec - conn->start_tv.tv_sec);
+    spent_time += conn->end_tv.tv_usec - conn->start_tv.tv_usec;
+
     ri = &conn->request_info;
+
+    if (ri->uri && *ri->uri) {
+        len = (int) strlen(ri->uri);
+        mg_url_decode(ri->uri, len, (char *) ri->uri, len + 1, 0);
+    }
+    if (ri->query_string && *ri->query_string) {
+        len = (int) strlen(ri->query_string);
+        mg_url_decode(ri->query_string, len, (char *) ri->query_string, len + 1, 0);
+    }
+
+    host_header = mg_get_header(conn, "Host");
 
     sockaddr_to_string(src_addr, sizeof(src_addr), &conn->client.rsa);
     referer = header_val(conn, "Referer");
     user_agent = header_val(conn, "User-Agent");
 
-    snprintf(buf, sizeof(buf), "%s - %s [%s] \"%s %s HTTP/%s\" %d %" INT64_FMT " %s %s",
+    snprintf(buf, sizeof(buf), "%s %s - %s [%s] \"%s %s%s%s HTTP/%s\" %d %" INT64_FMT " %s %s %" INT64_FMT " %" INT64_FMT,
+            host_header ? host_header : "-",
             src_addr, ri->remote_user == NULL ? "-" : ri->remote_user, date,
             ri->request_method ? ri->request_method : "-",
-            ri->uri ? ri->uri : "-", ri->http_version,
+            ri->uri ? ri->uri : "-", ri->query_string ? "?" : "",
+            ri->query_string ? ri->query_string : "", ri->http_version,
             conn->status_code, conn->num_bytes_sent,
-	    referer, user_agent);
+	    referer, user_agent, conn->consumed_content, spent_time);
 
     if (conn->ctx->callbacks.log_access) {
         conn->ctx->callbacks.log_access(conn, buf);
@@ -6520,6 +6542,7 @@ static int getreq(struct mg_connection *conn, char *ebuf, size_t ebuf_len, int *
             conn->content_len = 0;
         }
         conn->birth_time = time(NULL);
+        gettimeofday(&conn->start_tv, NULL);
     }
     return 1;
 }
@@ -6581,6 +6604,7 @@ static void process_new_connection(struct mg_connection *conn)
             if (conn->ctx->callbacks.end_request != NULL) {
                 conn->ctx->callbacks.end_request(conn, conn->status_code);
             }
+            gettimeofday(&conn->end_tv, NULL);
             log_access(conn);
         }
         if (ri->remote_user != NULL) {
@@ -6669,6 +6693,7 @@ static void *worker_thread_run(void *thread_func_param)
            produce_socket() */
         while (consume_socket(ctx, &conn->client)) {
             conn->birth_time = time(NULL);
+            gettimeofday(&conn->start_tv, NULL);
 
             /* Fill in IP, port info early so even if SSL setup below fails,
                error handler would have the corresponding info.
