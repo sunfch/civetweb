@@ -6116,7 +6116,8 @@ static void log_access(const struct mg_connection *conn)
     referer = header_val(conn, "Referer");
     user_agent = header_val(conn, "User-Agent");
 
-    snprintf(buf, sizeof(buf), "%s %s %s %s - %s [%s] \"%s %s%s%s HTTP/%s\" %d %" INT64_FMT " %s %s %" INT64_FMT " %" INT64_FMT,
+    snprintf(buf, sizeof(buf), "\"%s\" \"%s\" \"%s\" \"%s\" \"-\" \"%s\" \"[%s]\" \"%s %s%s%s HTTP/%s\" "
+		    "\"%d\" \"%" INT64_FMT "\" \"%s\" \"%s\" \"%" INT64_FMT "\" \"%" INT64_FMT "\"",
             conn->uid,
             host_header ? host_header : "-",
             src_addr,
